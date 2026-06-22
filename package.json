@@ -1,0 +1,27 @@
+{
+  "name": "koda",
+  "version": "0.1.0",
+  "description": "Koda — AI-Powered IDE built on Claude",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "concurrently -k -n VITE,ELECTRON -c cyan,magenta \"vite\" \"wait-on tcp:5173 && cross-env NODE_ENV=development electron .\"",
+    "build": "vite build",
+    "electron": "electron ."
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.36.3",
+    "@monaco-editor/react": "^4.6.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^9.0.1",
+    "react-syntax-highlighter": "^15.5.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^9.0.1",
+    "cross-env": "^7.0.3",
+    "electron": "^33.2.0",
+    "vite": "^5.4.10",
+    "wait-on": "^8.0.1"
+  }
+}
