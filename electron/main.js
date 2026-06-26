@@ -1,4 +1,8 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron')
+const _electron = require('electron')
+process.stderr.write('DEBUG electron type: ' + typeof _electron + '\n')
+process.stderr.write('DEBUG electron keys: ' + JSON.stringify(Object.keys(_electron || {})) + '\n')
+const _api = (_electron && _electron.app) ? _electron : (_electron && _electron.default) ? _electron.default : _electron
+const { app, BrowserWindow, ipcMain, dialog } = _api
 const path = require('path')
 const fsPromises = require('fs').promises
 
@@ -14,7 +18,7 @@ function createWindow() {
     minHeight: 600,
     frame: false,
     backgroundColor: '#0d1117',
-    show: false,
+    show: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -29,7 +33,7 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
   }
 
-  mainWindow.once('ready-to-show', () => mainWindow.show())
+  mainWindow.webContents.openDevTools()
 }
 
 app.whenReady().then(createWindow)
@@ -69,37 +73,47 @@ ipcMain.handle('fs:readFile',  async (_, p) => fsPromises.readFile(p, 'utf-8'))
 ipcMain.handle('fs:writeFile', async (_, p, content) => { await fsPromises.writeFile(p, content, 'utf-8'); return true })
 ipcMain.handle('fs:pathSep',   () => path.sep)
 
-// ── Claude AI (streaming) ────────────────────────────────────────────────────
+// ── Gemini AI (streaming) ────────────────────────────────────────────────────
 ipcMain.on('ai:chat', async (event, { messages, apiKey, system, requestId }) => {
-  let Anthropic
+  let GoogleGenerativeAI
   try {
-    Anthropic = require('@anthropic-ai/sdk')
-    if (Anthropic.default) Anthropic = Anthropic.default
+    GoogleGenerativeAI = require('@google/generative-ai').GoogleGenerativeAI
   } catch {
-    event.sender.send('ai:error', { requestId, error: 'Anthropic SDK not installed. Run: npm install' })
+    event.sender.send('ai:error', { requestId, error: 'Google AI SDK not installed. Run: npm install' })
     return
   }
 
-  const client = new Anthropic({ apiKey })
+  const genAI = new GoogleGenerativeAI(apiKey)
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.0-flash',
+    systemInstruction: system,
+  })
+
+  // Gemini uses 'model' instead of 'assistant', and wraps text in parts
+  const history = messages.slice(0, -1).map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }]
+  }))
+  const lastMessage = messages[messages.length - 1]
 
   try {
-    const stream = client.messages.stream({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 8096,
-      system,
-      messages
-    })
+    const chat = model.startChat({ history })
+    const result = await chat.sendMessageStream(lastMessage.content)
 
-    stream.on('text', text => {
-      if (!event.sender.isDestroyed()) event.sender.send('ai:chunk', { requestId, text })
-    })
+    for await (const chunk of result.stream) {
+      const text = chunk.text()
+      if (text && !event.sender.isDestroyed()) {
+        event.sender.send('ai:chunk', { requestId, text })
+      }
+    }
 
-    const final = await stream.finalMessage()
+    const response = await result.response
+    const usage = response.usageMetadata
     if (!event.sender.isDestroyed()) {
       event.sender.send('ai:done', {
         requestId,
-        inputTokens: final.usage?.input_tokens ?? 0,
-        outputTokens: final.usage?.output_tokens ?? 0
+        inputTokens: usage?.promptTokenCount ?? 0,
+        outputTokens: usage?.candidatesTokenCount ?? 0
       })
     }
   } catch (err) {

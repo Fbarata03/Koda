@@ -210,7 +210,7 @@ export default function AIChat({ apiKey, activeFile, onNeedKey }) {
             <div className="chat-welcome-icon"><AiSparkle size={32} /></div>
             <h3>Koda AI</h3>
             <p>
-              Powered by <strong>Claude claude-sonnet-4-6</strong> — 200K context window.<br />
+              Powered by <strong>Gemini 2.0 Flash</strong> — 1M context window.<br />
               Ask questions, get code reviews, debug errors,<br />or explain any file in your project.
             </p>
           </div>

@@ -42,10 +42,23 @@ function FolderIcon({ open }) {
   )
 }
 
-function TreeNode({ entry, depth, activeFilePath, onFileClick, onToggleDir, expandedDirs, dirCache }) {
+function TreeNode({ entry, depth, activeFilePath, onFileClick, onToggleDir, expandedDirs, dirCache, isLast, ancestorLasts }) {
   const isExpanded = expandedDirs.has(entry.path)
   const children   = dirCache.get(entry.path)
   const isActive   = entry.path === activeFilePath
+
+  // Build the indent guides: for each ancestor depth, draw a vertical line unless that ancestor was last
+  const guides = []
+  for (let i = 0; i < depth; i++) {
+    guides.push(
+      <span
+        key={i}
+        className="tree-guide"
+        style={{ left: 8 + i * 16 + 5 }}
+        data-last={ancestorLasts[i] ? 'true' : 'false'}
+      />
+    )
+  }
 
   return (
     <div>
@@ -55,6 +68,7 @@ function TreeNode({ entry, depth, activeFilePath, onFileClick, onToggleDir, expa
         onClick={() => entry.isDirectory ? onToggleDir(entry.path) : onFileClick(entry.path)}
         title={entry.path}
       >
+        {guides}
         {entry.isDirectory ? (
           <>
             <ChevronIcon open={isExpanded} />
@@ -71,18 +85,23 @@ function TreeNode({ entry, depth, activeFilePath, onFileClick, onToggleDir, expa
 
       {entry.isDirectory && isExpanded && children && (
         <div>
-          {children.map(child => (
-            <TreeNode
-              key={child.path}
-              entry={child}
-              depth={depth + 1}
-              activeFilePath={activeFilePath}
-              onFileClick={onFileClick}
-              onToggleDir={onToggleDir}
-              expandedDirs={expandedDirs}
-              dirCache={dirCache}
-            />
-          ))}
+          {children.map((child, idx) => {
+            const childIsLast = idx === children.length - 1
+            return (
+              <TreeNode
+                key={child.path}
+                entry={child}
+                depth={depth + 1}
+                activeFilePath={activeFilePath}
+                onFileClick={onFileClick}
+                onToggleDir={onToggleDir}
+                expandedDirs={expandedDirs}
+                dirCache={dirCache}
+                isLast={childIsLast}
+                ancestorLasts={[...ancestorLasts, isLast]}
+              />
+            )
+          })}
           {children.length === 0 && (
             <div
               className="tree-item"
@@ -152,7 +171,7 @@ export default function Sidebar({ folderPath, activeFilePath, onOpenFolder, onFi
           <div style={{ padding: '12px 16px', color: 'var(--txt-2)', fontSize: 12 }}>Loading…</div>
         )}
 
-        {!loading && rootEntries.map(entry => (
+        {!loading && rootEntries.map((entry, idx) => (
           <TreeNode
             key={entry.path}
             entry={entry}
@@ -162,6 +181,8 @@ export default function Sidebar({ folderPath, activeFilePath, onOpenFolder, onFi
             onToggleDir={handleToggleDir}
             expandedDirs={expandedDirs}
             dirCache={dirCache}
+            isLast={idx === rootEntries.length - 1}
+            ancestorLasts={[]}
           />
         ))}
       </div>
